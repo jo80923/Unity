@@ -151,7 +151,7 @@ namespace jax{
       }
       if(this->state == gpu){
         if(this->host == NULL){
-          this->host = operator new(sizeof(T)*this->numElements);
+          this->host = new T[this->numElements];
         }
         CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
       }
@@ -161,12 +161,12 @@ namespace jax{
         CudaSafeCall(cudaMalloc((void**)&this->device, sizeof(T)*this->numElements));
       }
       CudaSafeCall(cudaMemcpy(this->device,this->host, sizeof(T)*this->numElements, cudaMemcpyHostToDevice));
-      operator delete(this->host);
+      delete[] this->host;
       this->host = NULL;
     }
     else if(state == cpu){
       if(this->host == NULL){
-        this->host = operator new(sizeof(T)*this->numElements);
+        this->host = new T[this->numElements];
       }
       CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
       CudaSafeCall(cudaFree(this->device));
@@ -202,7 +202,7 @@ namespace jax{
         break;
       case cpu:
         if(this->host != NULL){
-          operator delete(this->host);
+          delete[] this->host;
         }
         break;
       case gpu:
@@ -212,7 +212,7 @@ namespace jax{
         break;
       case both:
         if(host != NULL){
-          operator delete(this->host);
+          delete[] this->host;
         }
         if(device != NULL){
           CudaSafeCall(cudaFree(this->device));
