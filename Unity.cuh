@@ -67,7 +67,6 @@ namespace jax{
     }
   };
 
-  //TODO make some variable represent whether host or device versions are the most up to date
   typedef enum MemoryState{
     null = 0,
     cpu = 1,
