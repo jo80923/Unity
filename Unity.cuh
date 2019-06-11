@@ -79,16 +79,21 @@ namespace jax{
   template<typename T>
   class Unity{
 
+    MemoryState fore;//most recently updated memory
+    MemoryState state;
+
   public:
 
     T* device;
     T* host;
     unsigned long numElements;
-    MemoryState state;
 
     Unity();
     Unity(T* data, unsigned long numElements, MemoryState state);
     ~Unity();
+
+    MemoryState getMemoryState();
+    MemoryState getForwardLocation();//shows most up to date memory (only useful when state = both)
 
     void setData(T* data, unsigned long numElements, MemoryState state);//hard set
     void setMemoryState(MemoryState state);//hard set
@@ -98,7 +103,6 @@ namespace jax{
     void transferMemoryTo(MemoryState state);//soft set
     void clearHost();//hard clear
     void clearDevice();//hard clear
-
   };
 
   template<typename T>
@@ -124,6 +128,16 @@ namespace jax{
   Unity<T>::~Unity(){
     this->clear();
   }
+
+  template<typename T>
+  MemoryState Unity<T>::getMemoryState(){
+    return this->state;
+  }
+  template<typename T>
+  MemoryState Unity<T>::getForwardLocation(){
+    return this->fore;
+  }
+
   template<typename T>
   void Unity<T>::setData(T* data, unsigned long numElements, MemoryState state){
     this->clear();
