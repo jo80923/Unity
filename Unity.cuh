@@ -106,15 +106,15 @@ namespace jax{
 
   template<typename T>
   Unity<T>::Unity(){
-    this->host = NULL;
-    this->device = NULL;
+    this->host = nullptr;
+    this->device = nullptr;
     this->state = null;
     this->numElements = 0;
   }
   template<typename T>
   Unity<T>::Unity(T* data, unsigned long numElements, MemoryState state){
-    this->host = NULL;
-    this->device = NULL;
+    this->host = nullptr;
+    this->device = nullptr;
     this->state = state;
     this->numElements = numElements;
     if(state == cpu) this->host = data;
@@ -157,33 +157,33 @@ namespace jax{
     else if(state == null) this->clear();
     else if(state == both){
       if(this->state == cpu){
-        if(this->device == NULL){
+        if(this->device == nullptr){
           CudaSafeCall(cudaMalloc((void**)&this->device, sizeof(T)*this->numElements));
         }
         CudaSafeCall(cudaMemcpy(this->device,this->host, sizeof(T)*this->numElements, cudaMemcpyHostToDevice));
       }
       if(this->state == gpu){
-        if(this->host == NULL){
+        if(this->host == nullptr){
           this->host = new T[this->numElements];
         }
         CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
       }
     }
     else if(state == gpu){
-      if(this->device == NULL){
+      if(this->device == nullptr){
         CudaSafeCall(cudaMalloc((void**)&this->device, sizeof(T)*this->numElements));
       }
       CudaSafeCall(cudaMemcpy(this->device,this->host, sizeof(T)*this->numElements, cudaMemcpyHostToDevice));
       delete[] this->host;
-      this->host = NULL;
+      this->host = nullptr;
     }
     else if(state == cpu){
-      if(this->host == NULL){
+      if(this->host == nullptr){
         this->host = new T[this->numElements];
       }
       CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
       CudaSafeCall(cudaFree(this->device));
-      this->device = NULL;
+      this->device = nullptr;
     }
     else{
       throw IllegalUnityTransition("unkown memory state");
@@ -214,28 +214,28 @@ namespace jax{
       case null:
         break;
       case cpu:
-        if(this->host != NULL){
+        if(this->host != nullptr){
           delete[] this->host;
         }
         break;
       case gpu:
-        if(this->device != NULL){
+        if(this->device != nullptr){
           CudaSafeCall(cudaFree(this->device));
         }
         break;
       case both:
-        if(host != NULL){
+        if(host != nullptr){
           delete[] this->host;
         }
-        if(device != NULL){
+        if(device != nullptr){
           CudaSafeCall(cudaFree(this->device));
         }
         break;
       default:
         throw IllegalUnityTransition("unkown memory state");
     }
-    this->host = NULL;
-    this->device = NULL;
+    this->host = nullptr;
+    this->device = nullptr;
     this->state = null;
     this->numElements = 0;
   }
@@ -250,26 +250,26 @@ namespace jax{
     else if(this->state == state) return;
     else if(state == both){
       if(this->state == cpu){
-        if(this->device == NULL){
+        if(this->device == nullptr){
           CudaSafeCall(cudaMalloc((void**)&this->device, sizeof(T)*this->numElements));
         }
         CudaSafeCall(cudaMemcpy(this->device,this->host, sizeof(T)*this->numElements, cudaMemcpyHostToDevice));
       }
       if(this->state == gpu){
-        if(this->host == NULL){
+        if(this->host == nullptr){
           this->host = new T[this->numElements];
         }
         CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
       }
     }
     else if(state == gpu){
-      if(this->device == NULL){
+      if(this->device == nullptr){
         CudaSafeCall(cudaMalloc((void**)&this->device, sizeof(T)*this->numElements));
       }
       CudaSafeCall(cudaMemcpy(this->device, this->host, sizeof(T)*this->numElements, cudaMemcpyHostToDevice));
     }
     else if(state == cpu){
-      if(this->host == NULL){
+      if(this->host == nullptr){
         this->host = new T[this->numElements];
       }
       CudaSafeCall(cudaMemcpy(this->host, this->device, sizeof(T)*this->numElements, cudaMemcpyDeviceToHost));
@@ -281,7 +281,7 @@ namespace jax{
   }
   template<typename T>
   void Unity<T>::clearHost(){
-    if(this->host != NULL){
+    if(this->host != nullptr){
       operator delete(this->host);
     }
     if(this->state == cpu){
@@ -293,9 +293,9 @@ namespace jax{
   }
   template<typename T>
   void Unity<T>::clearDevice(){
-    if(this->device != NULL){
+    if(this->device != nullptr){
       CudaSafeCall(cudaFree(this->device));
-      this->device = NULL;
+      this->device = nullptr;
     }
     if(this->state == gpu){
       this->state = null;
