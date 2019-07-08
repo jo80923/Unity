@@ -75,7 +75,7 @@ namespace jax{
     pinned = 4
   } MemoryState;
 
-  std::string memoryStateToString(MemoryState state){
+  inline std::string memoryStateToString(MemoryState state){
     switch(state){
       case null:
         return "null";
