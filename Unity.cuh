@@ -44,7 +44,9 @@ inline void __cudaCheckError(const char *file, const int line) {
   return;
 }
 
-namespace ssrlcv{
+//TODO go back and make sure that fore is being set properly
+
+namespace jax{
 
   typedef enum MemoryState{
     null = 0,
@@ -55,7 +57,17 @@ namespace ssrlcv{
   } MemoryState;
 
   namespace{
-    struct IllegalUnityTransition{
+    struct UnityException{
+      std::string msg;
+      UnityException(){
+        msg = "Unknown Unity Exception";
+      }
+      UnityException(std::string msg) : msg("Unity Exception: " + msg){}
+      virtual const char* what() const throw(){
+        return msg.c_str();
+      }
+    };
+    struct IllegalUnityTransition : public UnityException{
       std::string msg;
       IllegalUnityTransition(){
         msg = "Illegal Unity memory transfer";
@@ -66,7 +78,7 @@ namespace ssrlcv{
       }
     };
 
-    struct NullUnityException{
+    struct NullUnityException : public UnityException{
       std::string msg;
       NullUnityException(){
         msg = "Illegal attempt to use null set Unity";
@@ -111,6 +123,7 @@ namespace ssrlcv{
 
     void clear(MemoryState state = both);//hard clear
     void transferMemoryTo(MemoryState state);//soft set - no deletes
+    void setMemoryState(MemoryState state);
     void setData(T* data, unsigned long numElements, MemoryState state);//hard set
   };
 
@@ -247,6 +260,33 @@ namespace ssrlcv{
     }
     this->state = both;
     this->fore = both;
+  }
+  template<typename T>
+  void Unity<T>::setMemoryState(MemoryState state){
+    if(state == this->state){
+      std::cerr<<"WARNING: hard setting of memory state to same memory state does nothing: "<<memoryStateToString(this->state)<<std::endl;
+    }
+    else if(this->state == null){
+      throw NullUnityException("Cannot setMemoryState of a null Unity");
+    }
+    else if(state == null) this->clear();
+    else if(this->state == both){
+      if(cpu == this->fore){
+        this->transferMemoryTo(gpu);
+      }
+      else{
+        this->transferMemoryTo(cpu);
+      }
+    }
+    else{
+      this->transferMemoryTo(state);
+      if(state == cpu){
+        this->clear(gpu);
+      }
+      else{
+        this->clear(cpu);
+      }
+    }
   }
   template<typename T>
   void Unity<T>::setData(T* data, unsigned long numElements, MemoryState state){
