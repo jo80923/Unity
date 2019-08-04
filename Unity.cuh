@@ -155,7 +155,7 @@ namespace jax{
   template<typename T>
   void Unity<T>::clear(MemoryState state){
     if(state == null){
-      std::cerr<<"WARNING: Unity<T>::clear(ssrlcv::null) does nothing"<<std::endl;
+      std::cerr<<"WARNING: Unity<T>::clear(jax::null) does nothing"<<std::endl;
       return;
     }
     else if(state != both && this->state != both && this->state != state){
@@ -259,7 +259,6 @@ namespace jax{
       }
     }
     this->state = both;
-    this->fore = both;
   }
   template<typename T>
   void Unity<T>::setMemoryState(MemoryState state){
