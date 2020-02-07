@@ -1,8 +1,12 @@
-/** \file   Unity.cuh
- * \author  Jackson Parker
- * \date    1 Sep 2019
- * \brief   File containing Unity class and CUDA error handlers
- */
+/** 
+* \file   Unity.cuh
+* \author  Jackson Parker
+* \date    1 Sep 2019
+* \brief   File containing Unity class and CUDA error handlers
+* \details This file contains the Unity header only CUDA memory handler
+* as well as the CUDA error checkers like the CudaSafeCall() function wrapper 
+* and the CudaCheckError() function.
+*/
 
 #ifndef UNITY_CUH
 #define UNITY_CUH
@@ -20,8 +24,9 @@
 #define CudaCheckError()    __cudaCheckError( __FILE__, __LINE__ )
 
 /**
- * \brief CudaSafeCall called as a function wrapper will
- * identify CUDA errors associated with internal call
+ * \brief CUDA error checking function wrapper. 
+ * \details This should be used as a function wrapper for CUDA error checking 
+ * on cudaMemcpy, cudaFree, and cudaMalloc calls.
  */
 inline void __cudaSafeCall(cudaError err, const char *file, const int line) {
 #ifdef CUDA_ERROR_CHECK
@@ -35,10 +40,14 @@ inline void __cudaSafeCall(cudaError err, const char *file, const int line) {
   return;
 }
 /**
- * \brief CudaCheckError() called after CUDA kernel execution will
- * identify CUDA errors occuring during the kernel.
+ * \brief Error checker function after kernel calls.
+ * \details Calling this function after kernel calls will 
+ * allow for CUDA error checking on kernels with the error line 
+ * likely coming from the next thread fence 
+ * (cuda memory transfers or cudaDeviceSynchronize()).
  * \note Uncommenting err = cudaDeviceSynchronize(); 
- * on line 55 will allow for more careful checking.
+ * on line 55 in Unity.cuh (and doing make clean;make) 
+ * will allow for more careful checking. (this will slow things down)
  */
 inline void __cudaCheckError(const char *file, const int line) {
 #ifdef CUDA_ERROR_CHECK
@@ -103,8 +112,7 @@ namespace jax{
     }
   }
   /**
-  * \brief base unity exception.    * \see MemoryState
-
+  * \brief base unity exception.
   */
   struct UnityException : std::exception{
     std::string msg;
@@ -117,8 +125,9 @@ namespace jax{
     }
   };
   /**
-  * \brief Custom exception called when attempting to transition
-  * Unity memory to state that would cause segfault.
+  * \brief Exception thrown when attempting an illegal memory transition. 
+  * \details This exception is primarily used to avoid segfaults. It is thrown 
+  * when attempting to transfer to an unknown or impossible memory state.
   */
   struct IllegalUnityTransition : public UnityException{
     std::string msg;
@@ -131,8 +140,9 @@ namespace jax{
     }
   };
   /**
-  * \brief Custom exception used when an action would lead to
-  * segfault due to nullptr.
+  * \brief Exception thrown with operation on null memory.
+  * \details This exception is primarily thrown when trying to operate on a null Unity 
+  * or when trying to setMemory to null. (clear() should be used for that)
   */
   struct NullUnityException : public UnityException{
     std::string msg;
@@ -177,10 +187,14 @@ namespace jax{
     T* host;///< \brief pointer to host memory (cpu)
     unsigned long numElements;///< \brief number of elements in *device or *host
 
-    Unity();///< \brief default contructor
+    /**
+    * \brief Default contructor 
+    * \details This constructor will just set everything to null and numElements to 0.
+    */
+    Unity();
 
     /**
-    * \brief primary constructor
+    * \brief Primary constructor
     * \tparam T datatype of data
     * \param data pointer to dynamically allocated array on host or device
     * \param numElements number of elements inside data pointer
@@ -189,13 +203,14 @@ namespace jax{
     Unity(T* data, unsigned long numElements, MemoryState state);
 
     /**
-    * \brief copy constructor (this becomes a copy of argument)
+    * \brief Copy constructor (this becomes a copy of argument)
     * \param copy Unity<T>* to be copied
     */
     Unity(Unity<T>* copy);
 
     /**
-    * \brief destructor
+    * \brief Destructor
+    * \details This destructor just calls clear(both). 
     * \see Unity<T>::clear
     */
     ~Unity();
