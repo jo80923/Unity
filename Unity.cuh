@@ -22,6 +22,10 @@
 #define CUDA_ERROR_CHECK
 #define CudaSafeCall( err ) __cudaSafeCall( err, __FILE__, __LINE__ )
 #define CudaCheckError()    __cudaCheckError( __FILE__, __LINE__ )
+/**
+* \defgroup error_util
+* \{
+*/
 
 /**
  * \brief CUDA error checking function wrapper. 
@@ -70,8 +74,15 @@ inline void __cudaCheckError(const char *file, const int line) {
 
   return;
 }
+/**
+* \}
+*/
 
 namespace jax{
+  /**
+  * \defgroup unity
+  * \{
+  */
 
   /**
   * \brief Internal way of representing pointer location and
@@ -113,6 +124,7 @@ namespace jax{
   }
   /**
   * \brief base unity exception.
+  * \ingroup error_util
   */
   struct UnityException : std::exception{
     std::string msg;
@@ -128,6 +140,7 @@ namespace jax{
   * \brief Exception thrown when attempting an illegal memory transition. 
   * \details This exception is primarily used to avoid segfaults. It is thrown 
   * when attempting to transfer to an unknown or impossible memory state.
+  * \ingroup error_util
   */
   struct IllegalUnityTransition : public UnityException{
     std::string msg;
@@ -142,7 +155,8 @@ namespace jax{
   /**
   * \brief Exception thrown with operation on null memory.
   * \details This exception is primarily thrown when trying to operate on a null Unity 
-  * or when trying to setMemory to null. (clear() should be used for that)
+  * or when trying to setMemory to null. (clear() should be used for that) 
+  * \ingroup error_util
   */
   struct NullUnityException : public UnityException{
     std::string msg;
@@ -264,7 +278,9 @@ namespace jax{
     */
     void transferMemoryTo(MemoryState state);
     /**
-    * \brief This method will delete all data and reset based on data provided. 
+    * \brief Method to effectively reset Unity based on input data.
+    * \details This method will erase all data in Unity and replace it with 
+    * data provided to this method. This does the same as the primary constructor. 
     * \param data - must be of previous type (can use nullptr for blank array of length numElements)
     * \param numElements - size of new data
     * \param state - location of new data (must be cpu or gpu)
@@ -272,6 +288,8 @@ namespace jax{
     void setData(T* data, unsigned long numElements, MemoryState state);
     /**
     * \brief This method will return a copy of this Unity<T>* with a specified memory state.
+    * \details This method will return a copy of this Unity with a new or the same 
+    * memory location. Due to this returning a Unity, destination can be both. 
     * \param destination - location of copied data (host,device,both)
     * \returns copy of data located in this
     */
@@ -540,7 +558,11 @@ namespace jax{
       else{//then gpu
         CudaSafeCall(cudaMemcpy(copied->device,this->device,this->numElements*sizeof(T),cudaMemcpyDeviceToDevice));
       }
-    }
+    }/**
+* \defgroup unity
+* \{
+*/
+
     else{
       if(this->state == both){
         if(this->fore != both) this->transferMemoryTo(both);
@@ -569,6 +591,10 @@ namespace jax{
       }
     }    
   }
+  /**
+  * \}
+  */
 }
+
 
 #endif /*UNITY_CUH*/
