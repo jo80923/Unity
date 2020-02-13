@@ -77,7 +77,6 @@ inline void __cudaCheckError(const char *file, const int line) {
 /**
 * \}
 */
-
 namespace jax{
   /**
   * \defgroup unity
