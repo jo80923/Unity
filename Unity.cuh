@@ -193,12 +193,13 @@ namespace jax{
     * \note Users do not need to pay attention to this when state != both
     */
     MemoryState fore;
-  
+
+    unsigned long numElements;///< \brief number of elements in *device or *host
+
   public:
     
     T* device;///< \brief pointer to device memory (gpu)
     T* host;///< \brief pointer to host memory (cpu)
-    unsigned long numElements;///< \brief number of elements in *device or *host
 
     /**
     * \brief Default contructor 
@@ -227,6 +228,19 @@ namespace jax{
     * \see Unity<T>::clear
     */
     ~Unity();
+    /**
+    * \brief Get the number of elements in the unity
+    * \details Used so that users cannot alter numElements and cause
+    * memory access issues.
+    */
+    unsigned long size();
+    /**
+    * \brief Resize Unity and keep data under specified index.
+    * \details This method will remove data that is positioned after past the number 
+    * of elements specified for resize. This will keep this->fore and this->state the same.
+    * \param resizeLength - numElements to keep
+    */
+    void resize(unsigned long resizeLength);
     /**
     * \brief Clear memory in a specified location.
     * \details This method deletes memory in a specific location. Default argument is 
@@ -306,14 +320,6 @@ namespace jax{
     * \returns copy of data located in this
     */
     Unity<T>* copy(MemoryState destination);
-
-    /**
-    * \brief Resize Unity and keep data under specified index.
-    * \details This method will remove data that is positioned after past the number 
-    * of elements specified for resize. This will keep this->fore and this->state the same.
-    * \param resizeLength - numElements to keep
-    */
-    void resize(unsigned long resizeLength);
   };
 
   template<typename T>
@@ -348,7 +354,39 @@ namespace jax{
   Unity<T>::~Unity(){
     this->clear();
   }
-
+  template<typename T>
+  unsigned long Unity<T>::size(){
+    return this->numElements;
+  }
+  template<typename T> 
+  void Unity<T>::resize(unsigned long resizeLength){
+    if(this->state == null){
+      throw NullUnityException("cannot resize and empty Unity");
+    }
+    else if(this->numElements <= resizeLength || resizeLength == 0U){
+      throw IllegalUnityTransition("in Unity<T>::resize resizeLength must be > 0 and < this->numElements");
+    }
+    else if(this->state <= 3){
+      if(this->state == cpu || this->state == both){
+        T* replacement = new T[resizeLength]();
+        std::memcpy(replacement,this->host,resizeLength*sizeof(T));
+        delete[] this->host;
+        this->host = replacement;
+      }
+      if(this->state == gpu || this->state == both){
+        T* replacement  = nullptr;
+        CudaSafeCall(cudaMalloc((void**)&replacement,resizeLength*sizeof(T)));
+        CudaSafeCall(cudaMemcpy(replacement,this->device,resizeLength*sizeof(T),cudaMemcpyDeviceToDevice));
+        CudaSafeCall(cudaFree(this->device));
+        this->device = replacement;
+      }
+    }
+    else{
+      std::string error = "please implement resize for newly supported MemoryState = ";
+      error += memoryStateToString(this->state);
+      throw UnityException(error);
+    }
+  }
   template<typename T>
   void Unity<T>::clear(MemoryState state){
     if(state == null){
@@ -564,35 +602,6 @@ namespace jax{
       throw IllegalUnityTransition("unsupported memory destination in Unity<T>::copy (supported states = both, cpu & gpu)");
     }
     return copied;
-  }
-  template<typename T> 
-  void Unity<T>::resize(unsigned long resizeLength){
-    if(this->state == null){
-      throw NullUnityException("cannot resize and empty Unity");
-    }
-    else if(this->numElements <= resizeLength || resizeLength == 0U){
-      throw IllegalUnityTransition("in Unity<T>::resize resizeLength must be > 0 and < this->numElements");
-    }
-    else if(this->state <= 3){
-      if(this->state == cpu || this->state == both){
-        T* replacement = new T[resizeLength]();
-        std::memcpy(replacement,this->host,resizeLength*sizeof(T));
-        delete[] this->host;
-        this->host = replacement;
-      }
-      if(this->state == gpu || this->state == both){
-        T* replacement  = nullptr;
-        CudaSafeCall(cudaMalloc((void**)&replacement,resizeLength*sizeof(T)));
-        CudaSafeCall(cudaMemcpy(replacement,this->device,resizeLength*sizeof(T),cudaMemcpyDeviceToDevice));
-        CudaSafeCall(cudaFree(this->device));
-        this->device = replacement;
-      }
-    }
-    else{
-      std::string error = "please implement resize for newly supported MemoryState = ";
-      error += memoryStateToString(this->state);
-      throw UnityException(error);
-    }
   }
   /**
   * \}
