@@ -97,30 +97,29 @@ namespace jax{
     unified = 5///< not supported yet
   } MemoryState;
 
-  namespace{
-    /**
-    * \brief returns a string based on the MemoryState type it is fed.
-    */
-    inline std::string memoryStateToString(MemoryState state){
-      switch(state){
-        case null:
-          return "null";
-        case cpu:
-          return "cpu";
-        case gpu:
-          return "gpu";
-        case both:
-          return "both cpu & gpu";
-        case pinned:
-          return "pinned (currently unsupported)";
-        case unified:
-          return "unified (currently unsupported)";
-        default:
-          std::clog<<"ERROR: unknown MemoryState when calling memoryStateToString()"<<std::endl;
-          exit(-1);
-      }
+  /**
+  * \brief returns a string based on the MemoryState type it is fed.
+  */
+  inline std::string memoryStateToString(MemoryState state){
+    switch(state){
+      case null:
+        return "null";
+      case cpu:
+        return "cpu";
+      case gpu:
+        return "gpu";
+      case both:
+        return "both";
+      case pinned:
+        return "pinned";
+      case unified:
+        return "unified";
+      default:
+        std::clog<<"ERROR: unknown MemoryState when calling memoryStateToString()"<<std::endl;
+        exit(-1);
     }
   }
+
   /**
   * \brief base unity exception.
   * \ingroup error_util
@@ -278,7 +277,7 @@ namespace jax{
     /**
     * \brief Get MemoryState of recently updated data when state = both.
     * \details This method should be used by user functions to check where data was 
-    * last updated.
+    * last updated. 
     * \returns MemoryState of data with most recent updates.
     */
     MemoryState getFore();
@@ -286,9 +285,9 @@ namespace jax{
     * \brief Set MemoryState after updating memory in a location when state = both.
     * \details This method should be used by user functions to ensure that Unity 
     * transfer and utility functions will handle recently updated memory properly.
-    * \param state MemoryState of recently updated data
+    * \param state - MemoryState of recently updated data (both is an illegal argument)
     * \warning If this is not set properly, there is a risk of recent changes to data 
-    * in device or host transferMemoryTo or setMemoryTo;
+    * in device or host transferMemoryTo or setMemoryStateTo.
     */
     void setFore(MemoryState state);
     /**
@@ -320,6 +319,11 @@ namespace jax{
     * \returns copy of data located in this
     */
     Unity<T>* copy(MemoryState destination);
+
+    /**
+    * \brief Print information about the Unity.
+    */
+    void printInfo();
   };
 
   template<typename T>
@@ -380,6 +384,7 @@ namespace jax{
         CudaSafeCall(cudaFree(this->device));
         this->device = replacement;
       }
+      this->numElements = resizeLength;
     }
     else{
       std::string error = "please implement resize for newly supported MemoryState = ";
@@ -423,25 +428,27 @@ namespace jax{
     if(state == null){
       throw NullUnityException("cannot zero out an empty unity with state null");
     }
-    else if (state != both && state != this->state){
-      std::string error = "cannot zero out ";
-      error += (this->state == cpu) ? "device because state == cpu" : "this->host because state == gpu";
-      throw IllegalUnityTransition(error);
+    else if(state <= 3){
+      if (state != both && this->state != both && state != this->state){
+        std::string error = "cannot zero out ";
+        error += (this->state == cpu) ? "device because state == cpu" : "this->host because state == gpu";
+        throw IllegalUnityTransition(error);
+      }
+      else{
+        if(state == cpu || (state == both && this->host != nullptr)){
+          delete[] this->host;
+          this->host = new T[this->numElements]();
+        }
+        if(state == gpu || (state == both && this->device != nullptr)){
+          T* zerod = (state == both && this->host != nullptr) ? this->host : new T[this->numElements]();
+          CudaSafeCall(cudaMemcpy(this->device,zerod,this->numElements*sizeof(T),cudaMemcpyHostToDevice));
+          if(state != both || this->host == nullptr) delete[] zerod;
+        }
+        this->fore = state;
+      }
     }
     else{
-      if(state == cpu || (state == both && this->host != nullptr)){
-        delete[] this->host;
-        this->host = new T[this->numElements]();
-      }
-      if(state == gpu || (state == both && this->device != nullptr)){
-        T* zerod = (state == both && this->host != nullptr) ? this->host : new T[this->numElements]();
-        CudaSafeCall(cudaMemcpy(this->device,zerod,this->numElements*sizeof(T),cudaMemcpyHostToDevice));
-        if(state != both || this->host == nullptr) delete[] zerod;
-      }
-      if(this->state == both && state != both){
-        std::clog<<"WARNING: zero'd out memory location becoming fore, if this is not desired use Unity<T>::setFore(MemoryState state) after this call: "
-        <<"\n\tthis->state = both zero'd out location = "<<memoryStateToString(state)<<" = this->fore"<<std::endl;
-      }
+      throw IllegalUnityTransition("unknown memory state in zeroOut() (supported states = both, cpu & gpu)");
     }
   }
   template<typename T>
@@ -481,6 +488,8 @@ namespace jax{
     }
     if(this->state != null) this->clear();
     this->numElements = numElements;
+    this->state = state;
+    this->fore = state;
     if(data == nullptr){
       if(state == null || state > 3){//greater than three means pinned or unified
         throw IllegalUnityTransition("attempt to instantiate unkown MemoryState fron nullptr (supported states = both, cpu & gpu)");
@@ -507,9 +516,6 @@ namespace jax{
         throw IllegalUnityTransition(error);
       }
     }
-    
-    this->state = state;
-    this->fore = state;
   }
   template<typename T> 
   MemoryState Unity<T>::getFore(){
@@ -520,11 +526,15 @@ namespace jax{
     if(this->state == null){
       throw NullUnityException("attempt to Unity<T>::setFore(MemoryState state) when this->state == null");
     }
-    if(this->fore == state){
+    else if(this->fore == state){
       std::clog<<"WARNING: Unity<T>::setFore(MemoryState state) when state == this->fore does nothing"<<std::endl;
       return;
     }
-    if(this->state != both && this->state != state){
+    else if(state == both){
+      std::clog<<"ERROR: cannot set fore to both manually: \n\tuse setMemoryState(both) or transferMemoryTo((this->fore == gpu) ? cpu : gpu)"<<std::endl;
+      exit(-1);
+    }
+    else if(this->state != both && this->state != state){
       if(this->state == cpu){
         throw IllegalUnityTransition("attempt to Unity<T>::setFore(MemoryState state) to gpu when this->device == nullptr");
       }
@@ -603,6 +613,13 @@ namespace jax{
     }
     return copied;
   }
+  template<typename T> 
+  void Unity<T>::printInfo(){
+    std::cout<<"numElements = "<<this->numElements;
+    std::cout<<" state = "<<memoryStateToString(this->state);
+    std::cout<<" fore = "<<memoryStateToString(this->fore)<<std::endl;
+  }
+
   /**
   * \}
   */
