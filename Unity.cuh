@@ -759,10 +759,6 @@ namespace jax{
   //handle SIGABRT, SIGINT and SIGTERM
 
 
-
-
-
-
   /**
   * \}
   */
@@ -770,19 +766,3 @@ namespace jax{
 
 
 #endif /*UNITY_CUH*/
-
-
-
-if(matches->getFore() == gpu || matches->getFore() == both){
-    thrust::device_ptr<DMatch> toSort(matches->device);
-    thrust::sort(toSort, toSort + matches->size(),match_dist_comparator());
-    matches->setFore(gpu);
-    if(matches->getMemoryState() == both) matches->transferMemoryTo(cpu);
-  }
-  else if(matches->getFore() == cpu){
-    
-  }
-  else{
-    std::cerr<<"ERROR cannot perform sortMatches with matches->getMemoryState() = "<<matches->getMemoryState()<<std::endl;
-    exit(-1);
-  }
