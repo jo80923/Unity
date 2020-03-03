@@ -24,6 +24,9 @@
 #include <string>
 #include <cstring>
 #include <iostream> 
+#include <fstream>
+#include <csignal>
+#include <typeinfo>
 
 #define CUDA_ERROR_CHECK
 #define CudaSafeCall( err ) __cudaSafeCall( err, __FILE__, __LINE__ )
@@ -176,6 +179,21 @@ namespace jax{
     }
   };
   /**
+  * \brief Exception thrown checkpoint file io error.
+  * \details 
+  * \ingroup error_util
+  */
+  struct CheckpointException : public UnityException{
+    std::string msg;
+    CheckpointException(){
+      msg = "Error in writing checkpoint";
+    }
+    CheckpointException(std::string msg) : msg("Error in writing checkpoint: " + msg){}
+    virtual const char* what() const throw(){
+      return msg.c_str();
+    }
+  };
+  /**
   * \class Unity
   * \brief This data structure is designed to hold an array of any data 
   * type utilized in cuda processing. 
@@ -318,6 +336,9 @@ namespace jax{
     * \param state - location of new data (must be cpu or gpu)
     */
     void setData(T* data, unsigned long numElements, MemoryState state);
+
+
+
     /**
     * \brief Return a copy of this Unity<T>* with a specified memory state.
     * \details This method will return a copy of this Unity with a new or the same 
@@ -344,6 +365,13 @@ namespace jax{
     * will have to be performed twice, once on gpu and once on cpu for fore preservation
     */
     void sort(bool (*comparator)(const T&,const T&), MemoryState destination = nc);
+
+    /**
+    * \brief handles signals and will write this Unity to a file
+    */
+    void writeCheckpoint(int id, std::string dirPath = "./");
+    void setFromCheckpoint(std::string pathToFile);
+
     /**
     * \brief Print information about the Unity.
     */
@@ -605,7 +633,11 @@ namespace jax{
     }
   }
 
-  //need to go back over these and check logic
+
+
+  //new methods untested start here 
+
+
   //need to test
   template<typename T> 
   Unity<T>* Unity<T>::copy(MemoryState destination){
@@ -744,19 +776,97 @@ namespace jax{
     if(origin != this->state) array->setMemoryState(origin);
   }
 
+  template<typename T>
+  void Unity<T>::writeCheckpoint(int id, std::string dirPath){
+    if(this->state == null){
+      throw NullUnityException("cannot write a checkpoint with a null Unity<T>");
+    }
+    const std::type_info& ti = typeid(T);
+    std::string pathToFile = dirPath + std::to_string(id) + "_";
+    pathToFile += ti.name();
+    pathToFile += ".uty";
+    std::ofstream checkpoint(pathToFile, ios::out, ios::binary);
+    if(!checkpoint){
+      pathToFile = "cannot open for write: " + pathToFile;
+      throw CheckpointException(pathToFile);
+    }
+    MemoryState origin = this->state;
+    if(this->fore == gpu) this->transferMemoryTo(cpu);
+    //write header 
+    //write hashcode or unique identifier
+    checkpoint.write((char*)&this->numElements,sizeof(unsigned long));
+    checkpoint.write((char*)&ti.hash_code(),sizeof(size_t));
+    checkpoint.write((char*)&strlen(ti.name()),sizeof(size_t));
+    checkpoint.write((char*)&ti.name(),sizeof(strlen(ti.name())));
+    checkpoint.write((char*)&origin,sizeof(MemoryState));
+    for(unsigned long i = 0; i < this->numElements; ++i){
+      checkpoint.write((char*)&this->host[i],sizeof(T));
+    }
+    if(checkpoint.good()){
+      std::cout<<"check point for Unity<T> written: "<<id<<" type = "<<ti.name()<<std::endl;
+    }
+    else{
+      throw CheckpointException("could not successfully write Unity<T> checkpoint");
+    }
+    if(this->state != origin) this->setMemoryState(origin);
+  }
+  //could maybe move this outside of Unity 
+  template<typename T>//TODO make a constructor that just calls this, this is essentiall just set data
+  void Unity<T>::setFromCheckpoint(std::string pathToFile){
+    std::ifstream checkpoint(pathToFile, ios::in, ios::binary);
+    if(!checkpoint){
+      pathToFile = "cannot open for read: " + pathToFile;
+      throw CheckpointException(pathToFile);
+    }
+    //read header
+    checkpoint.read((char*)&this->numElements,sizeof(unsigned long));
+    const std::type_info& treader = typeid(T);
+    size_t in_hash = 0;
+    checkpoint.read((char*)&in_hash,sizeof(size_t));
+    if(in_hash != treader.hash_code()){
+      throw CheckpointException("hash_codes of type T do not match up in Unity checkpoint reader");
+    }
+    size_t name_size = 0;
+    checkpoint.read((char*)&name_size,sizeof(size_t));
+    char* name = (char*) malloc(name_size);
+    checkpoint.read((char*)&name,sizeof(name_size));
+    std::string equate = treader.name();
+    if(!equate.compare(name)){
+      throw CheckpointException("names of type T do not match up in Unity checkpoint reader");
+    }
+    free(name);
+    MemoryState last_origin = null;
+    checkpoint.read((char*)&last_origin,sizeof(MemoryState));
+    if(last_origin == null){
+      throw CheckpointException("last_origin in Unity checkpoint header shows null");
+    }
+    this->setData(nullptr,this->numElements,cpu);
+    for(unsigned long i = 0; i < this->numElements; ++i){
+      checkpoint.read((char*)&this->host[i],sizeof(T)));
+    }
+    if(checkpoint.good()){
+      std::cout<<pathToFile<<" checkpoint successfully read in"<<std::endl;
+    }
+    else{
+      throw CheckpointException("could not successfully read Unity<T> checkpoint");
+    }
+    if(this->state != last_origin) this->setMemoryState(last_origin);
+  }
 
+  //if you want human readable typenames as file names implement specialization here
+  //TODO add specialization example
+
+
+  //new methods untested stop here
 
   template<typename T> 
   void Unity<T>::printInfo(){
     std::cout<<"numElements = "<<this->numElements;
     std::cout<<" state = "<<memoryStateToString(this->state);
-    std::cout<<" fore = "<<memoryStateToString(this->fore)<<std::endl;
+    std::cout<<" fore = "<<memoryStateToString(this->fore);
+    std::cout<<" type = "<<typeid(T).name()<<std::endl;
   }
 
-  /**
-  * \ingroup io_and_signals
-  */
-  //handle SIGABRT, SIGINT and SIGTERM
 
 
   /**
