@@ -212,10 +212,7 @@ int main(int argc, char *argv[]){
     fullpass += printTest<int>(i_nums.size(),i_nums.host,&truth[0]);
 
 
-    /*
-    If i_nums was a pointer allocated with new, you would have to delete i_nums.
-    Here destructor takes care of it.  
-    */
+    //TODO add Unity<T>::remove, Unity<T>::copy(predicate), and Unity<T>::sort tests
 
     if(fullpass == 6){
       std::cout<<"ALL TESTS PASSED"<<std::endl;
