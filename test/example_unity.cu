@@ -1,5 +1,5 @@
 /**
-* \file example.cu
+* \file example_unity.cu
 * \author  Jackson Parker
 * \date    Feb 8 2020
 * \brief Example on the usage of the Unity structure.
@@ -7,8 +7,7 @@
 * \example 
 * \see Unity
 */
-#include "../Unity.cuh"
-#include <vector>
+#include "../../include/common_includes.h"
 
 /*
 NOTE: This example kernel is VERY simple compared to most 
@@ -20,6 +19,22 @@ __global__ void add_100(int numElements, int* data){
     data[blockIdx.x] += 100;
   }
 }
+
+
+__device__ bool i_greater(const int& a, const int& b){
+  return a > b;
+}
+__device__ jax::Unity<int>::comp_ptr greater_device = i_greater;
+
+__device__ bool less70(const int& a){
+  return a < 70;
+}
+__device__ jax::Unity<int>::pred_ptr less70_device = less70;
+
+__device__ bool greq70(const int& a){
+  return a >= 70;
+}
+__device__ jax::Unity<int>::pred_ptr greq70_device = greq70;
 
 void add_100(jax::Unity<int>* i_nums){
   //check where the data is 
@@ -115,8 +130,6 @@ int main(int argc, char *argv[]){
       else truth.push_back(-i);
     }
     i_nums.setData(replacement,1000,jax::cpu);
-    std::cout<<"\tafter i_nums.setData(replacement,1000,jax::cpu) ";
-    i_nums.printInfo();
     std::cout<<"\t";
     fullpass += printTest<int>(i_nums.size(),i_nums.host,replacement);
 
@@ -211,10 +224,42 @@ int main(int argc, char *argv[]){
     std::cout<<"\t";
     fullpass += printTest<int>(i_nums.size(),i_nums.host,&truth[0]);
 
+    i_nums.resize(100);
+    truth.clear();
+    for(int i = 0; i < 100; ++i){
+      i_nums.host[i] = i;
+      truth.push_back(99-i);
+    }
 
-    //TODO add Unity<T>::remove, Unity<T>::copy(predicate), and Unity<T>::sort tests
+    std::cout<<"testing result sorting with custom greater than\n\t";
+    jax::Unity<int>::comp_ptr greater_host;
+    cudaMemcpyFromSymbol(&greater_host, greater_device, sizeof(jax::Unity<int>::comp_ptr));
+    i_nums.sort(greater_host);// Tmust have overloaded > operator
+    fullpass += printTest<int>(i_nums.size(),i_nums.host,&truth[0]);
 
-    if(fullpass == 6){
+
+    truth.clear();
+    for(int i = 0; i < 70; ++i){
+      truth.push_back(i);
+    }
+    std::cout<<"testing copy if\n\t";
+    jax::Unity<int>::pred_ptr less70_host;
+    cudaMemcpyFromSymbol(&less70_host, less70_device, sizeof(jax::Unity<int>::pred_ptr));
+    jax::Unity<int> i_nums_keep = i_nums.copy(less70_host);
+    i_nums_keep.sort();
+    fullpass += printTest<int>(i_nums_keep.size(),i_nums_keep.host,&truth[0]);
+
+    std::cout<<"testing remove if\n\t"<<std::endl;
+    jax::Unity<int>::pred_ptr greq70_host;
+    cudaMemcpyFromSymbol(&greq70_host, greq70_device, sizeof(jax::Unity<int>::pred_ptr));
+    i_nums.remove(greq70_host);
+    i_nums.sort();
+    for(int i = 0; i < i_nums.size(); ++i){
+      std::cout<<i_nums.host[i]<<" "<<i_nums_keep.host[i]<<std::endl;
+    }
+    fullpass += printTest<int>(i_nums.size(),i_nums.host,i_nums_keep.host);
+
+    if(fullpass == 9){
       std::cout<<"ALL TESTS PASSED"<<std::endl;
     }
 
